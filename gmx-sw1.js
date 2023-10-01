@@ -1,26 +1,25 @@
 var CACHE_NAME = 'Geomixer';
-var OFFLINE_TILE = './offline.png';
+// var OFFLINE_TILE = './offline.png';
+var OFFLINE_TILE = './empty.jpg';
+
 var offlineVersion = false;
 
 console.log("SW startup");
 
 self.addEventListener('install', function(event) {
-	
-  caches.delete(CACHE_NAME);
+  self.caches.delete(CACHE_NAME);
   
   // Store the «offline tile» on startup.
   return fetchAndCache(OFFLINE_TILE)
-    .then(function () {
-      console.log("SW installed");
-    });
+    .then(() => console.log('SW installed'));
 });
 
-self.addEventListener('activate', function(event) {
-	console.log("SW activated!");
-    event.waitUntil(clients.claim());
+self.addEventListener('activate', event => {
+	console.log('SW activated!');
+    event.waitUntil(self.clients.claim());
 });
 
-self.addEventListener('message', function(event) {
+self.addEventListener('message', event => {
   var data = event.data;
   if ('offlineVersion' in data) {
 	offlineVersion = data.offlineVersion;
@@ -32,26 +31,18 @@ self.addEventListener('message', function(event) {
 //
 // Intercept download of map tiles: read from cache or download.
 //
-self.addEventListener('fetch', function(event) {
-  var request = event.request;
-  // const flag = /\bsw=1\b/.test(request.url) || /\.ddm/.test(request.url);
+self.addEventListener('fetch', event => {
+  var req = event.request;
+  // const flag = /\bsw=1\b/.test(req.url) || /\.ddm/.test(req.url);
   // if (flag) {
-  if (/\bsw=1\b/.test(request.url)) {
-    var cached = caches.match(request)
-      .then(function (r) {
-        if (r) {
-          // console.log('Cache hit', r);
-          return r;
-        }
-        // console.log('Cache missed', request);
-        // return fetchAndCache(request);
-        return offlineVersion ? null : fetchAndCache(request);
+  if (/\bsw=1\b/.test(req.url)) {
+    var cached = self.caches.match(req)
+      .then(r => {
+        if (r) return r;
+        // console.log('Cache missed', req);
+        return offlineVersion ? null : fetchAndCache(req);
       })
-      // Fallback to offline tile if never cached.
-      .catch(function(e) {
-        console.log('Fetch failed', e);
-        return fetch(OFFLINE_TILE);
-      });
+      .catch(fetch(OFFLINE_TILE));	// Fallback to offline tile if never cached.
     event.respondWith(cached);
   }
 });
@@ -59,16 +50,17 @@ self.addEventListener('fetch', function(event) {
 //
 // Helper to fetch and store in cache.
 //
-function fetchAndCache(request) {
-  return fetch(request)
-    .then(function (response) {
-      return caches.open(CACHE_NAME)
-        .then(function(cache) {
-          // console.log('Store in cache', response);
-          cache.put(request, response.clone());
-          return response;
+function fetchAndCache(req) {
+  return fetch(req)
+    .then(resp => {
+      return self.caches.open(CACHE_NAME)
+        .then(cache => {
+          cache.put(req, resp.clone());
+          return resp;
         });
-    });
+    })
+	.catch(() => fetch(OFFLINE_TILE));
+
 }
 
 //	http://prgssr.ru/development/sozdaem-service-worker.html
